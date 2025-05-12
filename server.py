@@ -44,6 +44,7 @@ class SimpleRESTHandler(BaseHTTPRequestHandler):
 
         else:
             self._set_headers(404)
+            print(self.path)
             self.wfile.write(json.dumps({"erro": "Caminho não encontrado"}).encode())
 
     def do_POST(self):
