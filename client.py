@@ -1,4 +1,6 @@
-import requests, getpass
+import requests
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 class Client:
     def __init__(self):
@@ -12,15 +14,15 @@ class Client:
                 "Authorization": f"Bearer {self.__token}",
                 "Accept": "application/json"
             }
-        response = requests.get(self.url_api, headers, verify=False)   
+        response = requests.get(url=self.url_api, headers=headers, verify=False)   
 
         if response.status_code == 200:
             dados = response.json()
             print(dados)
         else:
-            print("Erro:", response.status_code)
-            print(response.text)
-
+            print("Erro:", response.text['erro'])
+            print("Codigo erro:", response.status_code)
+            
         return
     
     def autenticacao(self, login: str, senha: str) -> None:
@@ -34,7 +36,7 @@ class Client:
             "Accept": "application/json"
         }
 
-        response = requests.post(self.url_autenticacao, json=payload, headers=headers)
+        response = requests.post(self.url_autenticacao, json=payload, headers=headers, verify=False)
 
         if response.status_code == 200:
             token = response.json().get("token")
@@ -55,7 +57,7 @@ if __name__ == "__main__":
             client.acessa_api_protegida()
         elif comando == 2:
             login = input("Digite o login: ")
-            senha = getpass.getpass(input("Digite a senha: "))
+            senha = input("Digite a senha: ")
             client.autenticacao(login=login, senha=senha)
         else:
             exit()

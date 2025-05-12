@@ -10,7 +10,11 @@ conta = {
     "senha": bcrypt.hashpw("senha123".encode(), bcrypt.gensalt())
 }
 
-chave = "chave_super_super_super_secreta"
+with open("chave_privada.pem", "rb") as f:
+    chave_privada_rsa = f.read()
+
+with open("chave_publica.pem", "rb") as f:
+    chave_publica_rsa = f.read()
 
 class SimpleRESTHandler(BaseHTTPRequestHandler):
     def _set_headers(self, status_code=200):
@@ -23,16 +27,16 @@ class SimpleRESTHandler(BaseHTTPRequestHandler):
             auth_header = self.headers.get("Authorization")
             if not auth_header or not auth_header.startswith("Bearer "):
                 self._set_headers(401)
-                self.wfile.write(json.dumps({"erro": "Token não fornecido"}).encode())
+                self.wfile.write(json.dumps({"erro": "Token nao fornecido"}).encode())
                 return            
 
             token = auth_header.split(" ")[1]
             try:
-                decoded = jwt.decode(token, chave, algorithms=["HS256"])
+                decoded = jwt.decode(token, chave_publica_rsa, algorithms=["RS256"])
                 usuario = decoded.get("login")
                 
                 self._set_headers()
-                self.wfile.write(json.dumps({"mensagem": f"Você está logado, {usuario}"}).encode())
+                self.wfile.write(json.dumps({"mensagem": f"Voce esta logado, {usuario}"}).encode())
 
             except jwt.ExpiredSignatureError:
                 self._set_headers(401)
@@ -40,12 +44,11 @@ class SimpleRESTHandler(BaseHTTPRequestHandler):
 
             except jwt.InvalidTokenError:
                 self._set_headers(401)
-                self.wfile.write(json.dumps({"erro": "Token inválido"}).encode())
+                self.wfile.write(json.dumps({"erro": "Token invalido"}).encode())
 
         else:
             self._set_headers(404)
-            print(self.path)
-            self.wfile.write(json.dumps({"erro": "Caminho não encontrado"}).encode())
+            self.wfile.write(json.dumps({"erro": "Caminho nao encontrado"}).encode())
 
     def do_POST(self):
         if self.path == "/api-autenticacao":
@@ -54,30 +57,30 @@ class SimpleRESTHandler(BaseHTTPRequestHandler):
             try:
                 data = json.loads(post_data.decode())
                 login = data.get("login")
-                senha = data.get("senha")
+                senha = data.get("password")
                 if login and senha:
                     if login == conta["login"] and bcrypt.checkpw(senha.encode(), conta["senha"]):
                         payload = {
                             "login": login,
                             "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=5)
                         }
-                        token = jwt.encode(payload, chave, algorithm="HS256")
+                        token = jwt.encode(payload, chave_privada_rsa, algorithm="RS256")
 
                         self._set_headers()
                         self.wfile.write(json.dumps({"mensagem": "Login bem-sucedido", "token": token}).encode())
                     else:
                         self._set_headers(401)
-                        self.wfile.write(json.dumps({"erro": "Credenciais inválidas"}).encode())
+                        self.wfile.write(json.dumps({"erro": "Credenciais invalidas"}).encode())
                 else:
                     self._set_headers(400)
-                    self.wfile.write(json.dumps({"erro": "Login e senha são obrigatórios"}).encode())
+                    self.wfile.write(json.dumps({"erro": "Login e senha são obrigatorios"}).encode())
 
             except json.JSONDecodeError:
                 self._set_headers(400)
-                self.wfile.write(json.dumps({"erro": "Requisição inválida"}).encode())
+                self.wfile.write(json.dumps({"erro": "Requisicao invalida"}).encode())
         else:
             self._set_headers(404)
-            self.wfile.write(json.dumps({"erro": "Caminho não encontrado"}).encode())
+            self.wfile.write(json.dumps({"erro": "Caminho nao encontrado"}).encode())
 
 def run(port=4443):
     httpd = HTTPServer(('localhost', port), SimpleRESTHandler)
