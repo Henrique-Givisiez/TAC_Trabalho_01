@@ -56,13 +56,11 @@ class SimpleRESTHandler(BaseHTTPRequestHandler):
                 if login and senha:
                     conn = sqlite3.connect("usuario.db")
                     cursor = conn.cursor()
-                    
-                    query_select_usuario = "SELECT * FROM Usuario WHERE Login = ? AND Senha = ?"
-                    cursor.execute(query_select_usuario, (login, bcrypt.hashpw(senha.encode(), bcrypt.gensalt())))
-                    autenticou = cursor.fetchone()
+                    cursor.execute("SELECT Senha FROM Usuario WHERE Login = ?", (login,))
+                    senha_confere = bcrypt.checkpw(senha.encode(), cursor.fetchone()[0])
                     conn.close()
                     
-                    if autenticou:
+                    if senha_confere:
                         payload = {
                             "login": login,
                             "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=1)
