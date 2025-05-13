@@ -4,11 +4,7 @@ import json
 import bcrypt
 import jwt
 import datetime
-
-conta = {
-    "login": "admin",
-    "senha": bcrypt.hashpw("senha123".encode(), bcrypt.gensalt())
-}
+import sqlite3
 
 with open("chave_privada.pem", "rb") as f:
     chave_privada_rsa = f.read()
@@ -34,7 +30,6 @@ class SimpleRESTHandler(BaseHTTPRequestHandler):
             try:
                 decoded = jwt.decode(token, chave_publica_rsa, algorithms=["RS256"])
                 usuario = decoded.get("login")
-                
                 self._set_headers()
                 self.wfile.write(json.dumps({"mensagem": f"Voce esta logado, {usuario}"}).encode())
 
@@ -59,10 +54,18 @@ class SimpleRESTHandler(BaseHTTPRequestHandler):
                 login = data.get("login")
                 senha = data.get("password")
                 if login and senha:
-                    if login == conta["login"] and bcrypt.checkpw(senha.encode(), conta["senha"]):
+                    conn = sqlite3.connect("usuario.db")
+                    cursor = conn.cursor()
+                    
+                    query_select_usuario = "SELECT * FROM Usuario WHERE Login = ? AND Senha = ?"
+                    cursor.execute(query_select_usuario, (login, bcrypt.hashpw(senha.encode(), bcrypt.gensalt())))
+                    autenticou = cursor.fetchone()
+                    conn.close()
+                    
+                    if autenticou:
                         payload = {
                             "login": login,
-                            "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=5)
+                            "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=1)
                         }
                         token = jwt.encode(payload, chave_privada_rsa, algorithm="RS256")
 
