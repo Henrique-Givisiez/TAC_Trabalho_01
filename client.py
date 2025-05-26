@@ -18,16 +18,18 @@ class Client:
         if response.status_code == 200:
             dados = response.json()
             print(dados['mensagem'])
+            print("Algoritmo utilizado:", dados['algoritmo'])
         else:
             print("Erro:", response.json()['erro'])
             print("Codigo erro:", response.status_code)
             
         return
     
-    def autenticacao(self, login: str, senha: str) -> None:
+    def autenticacao(self, login: str, senha: str,algoritmo) -> None:
         payload = {
             "login": login,
-            "password": senha
+            "password": senha,
+            "algoritmo":algoritmo
         }
 
         headers = {
@@ -36,6 +38,7 @@ class Client:
         }
 
         response = requests.post(self.url_autenticacao, json=payload, headers=headers, verify=False)
+
 
         if response.status_code == 200:
             token = response.json()["token"]
@@ -62,7 +65,13 @@ if __name__ == "__main__":
             elif comando == 2:
                 login = input("Digite o login: ")
                 senha = getpass.getpass("Digite a senha: ")
-                client.autenticacao(login=login, senha=senha)
+                algoritmo = input("Escolha o algoritmo (RS256/HS256): ").strip().upper()
+                if algoritmo not in ["RS256", "HS256"]:
+                    print("Algoritmo inválido. Usando RS256 por padrão.")
+                    algoritmo = "RS256"
+                client.autenticacao(login=login, senha=senha, algoritmo=algoritmo)
+
+
             elif comando == 3:
                 client.logout()
             else:

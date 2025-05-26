@@ -1,4 +1,5 @@
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from jwt import get_unverified_header
 import ssl
 import json
 import bcrypt
@@ -6,11 +7,14 @@ import jwt
 import datetime
 import sqlite3
 
+
 with open("chave_privada.pem", "rb") as f:
     chave_privada_rsa = f.read()
 
 with open("chave_publica.pem", "rb") as f:
     chave_publica_rsa = f.read()
+
+chave_secreta_hmac = b"senhasupersecreta"
 
 class SimpleRESTHandler(BaseHTTPRequestHandler):
     def _set_headers(self, status_code=200):
@@ -28,10 +32,18 @@ class SimpleRESTHandler(BaseHTTPRequestHandler):
 
             token = auth_header.split(" ")[1]
             try:
-                decoded = jwt.decode(token, chave_publica_rsa, algorithms=["RS256"])
+                header = get_unverified_header(token)
+                algoritmo = header.get("alg")
+                
+                if algoritmo == "HS256":
+                    decoded = jwt.decode(token,chave_secreta_hmac,algorithms=["HS256"])
+                
+                else:
+                    decoded = jwt.decode(token, chave_publica_rsa, algorithms=["RS256"])
+                    
                 usuario = decoded.get("login")
                 self._set_headers()
-                self.wfile.write(json.dumps({"mensagem": f"Voce esta logado, {usuario}"}).encode())
+                self.wfile.write(json.dumps({"mensagem": f"Voce esta logado, {usuario}", "algoritmo": algoritmo}).encode())
 
             except jwt.ExpiredSignatureError:
                 self._set_headers(401)
@@ -44,7 +56,6 @@ class SimpleRESTHandler(BaseHTTPRequestHandler):
         else:
             self._set_headers(404)
             self.wfile.write(json.dumps({"erro": "Caminho nao encontrado"}).encode())
-
     def do_POST(self):
         if self.path == "/api-autenticacao":
             content_length = int(self.headers['Content-Length'])
@@ -53,19 +64,25 @@ class SimpleRESTHandler(BaseHTTPRequestHandler):
                 data = json.loads(post_data.decode())
                 login = data.get("login")
                 senha = data.get("password")
+                algoritmo = data.get("algoritmo", "RS256")  # Correção aqui também
+
                 if login and senha:
                     conn = sqlite3.connect("usuario.db")
                     cursor = conn.cursor()
                     cursor.execute("SELECT Senha FROM Usuario WHERE Login = ?", (login,))
-                    senha_confere = bcrypt.checkpw(senha.encode(), cursor.fetchone()[0])
+                    result = cursor.fetchone()
                     conn.close()
-                    
-                    if senha_confere:
+
+                    if result and bcrypt.checkpw(senha.encode(), result[0]):
                         payload = {
                             "login": login,
                             "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=1)
                         }
-                        token = jwt.encode(payload, chave_privada_rsa, algorithm="RS256")
+
+                        if algoritmo == "HS256":
+                            token = jwt.encode(payload, chave_secreta_hmac, algorithm="HS256")
+                        else:
+                            token = jwt.encode(payload, chave_privada_rsa, algorithm="RS256")
 
                         self._set_headers()
                         self.wfile.write(json.dumps({"mensagem": "Login bem-sucedido", "token": token}).encode())
@@ -90,6 +107,7 @@ def run(port=4443):
     context.load_cert_chain(certfile="cert.pem", keyfile="chave.pem")
 
     httpd.socket = context.wrap_socket(httpd.socket, server_side=True)
+
     
     print(f"Servidor rodando em https://localhost:{port}")
     httpd.serve_forever()
